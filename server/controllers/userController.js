@@ -32,88 +32,148 @@ export const getUserData = async (req, res) => {
 };
 
 /* =======================================================
-   ✅ PURCHASE COURSE (FIXED)
+   🔥 MULTI-COURSE PURCHASE (FIXED)
 ======================================================= */
 export const purchaseCourse = async (req, res) => {
   try {
-    const { courseId } = req.body;
+    const { cart, courseIds } = req.body;
     const origin = req.headers.origin || req.headers.referer || "";
     const userId = req.auth.userId;
 
-    if (!courseId)
-      return res.json({ success: false, message: "Missing courseId" });
+    let courses = [];
 
-    const courseData = await Course.findById(courseId);
-    const userData = await User.findById(userId);
+    // ✅ HANDLE BOTH FRONTEND TYPES
+    if (cart && cart.length > 0) {
+      courses = cart;
+    } else if (courseIds && courseIds.length > 0) {
+      const fetchedCourses = await Course.find({
+        _id: { $in: courseIds },
+      });
 
-    if (!courseData || !userData)
-      return res.json({ success: false, message: "Data not found" });
+      courses = fetchedCourses;
+    }
 
-    const priceNum = Number(courseData.coursePrice || 0);
-    const discountPercent = Number(courseData.discount || 0);
+    if (!courses || courses.length === 0) {
+      return res.json({ success: false, message: "Cart is empty" });
+    }
 
-    const net = Number(
-      (priceNum - (discountPercent * priceNum) / 100).toFixed(2)
-    );
+    let totalAmount = 0;
 
-    // Check existing pending purchase
-    const existingPending = await Purchase.findOne({
-      courseId: courseData._id,
+    const ids = courses.map((item) => {
+      const price = Number(item.coursePrice || 0);
+      const discount = Number(item.discount || 0);
+
+      const finalPrice = price - (discount * price) / 100;
+      totalAmount += finalPrice;
+
+      return item._id;
+    });
+
+    // ✅ CREATE PURCHASE
+    const purchase = await Purchase.create({
+      courses: ids,
       userId,
+      amount: totalAmount,
       status: "pending",
     });
 
-    if (existingPending) {
-      existingPending.amount = net;
-      await existingPending.save();
-    }
-
-    const newPurchase =
-      existingPending ||
-      (await Purchase.create({
-        courseId: courseData._id,
-        userId,
-        amount: net,
-        status: "pending",
-      }));
-
     const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-    // ⭐ FIXED — include courseId in success URL
-    const session = await stripeInstance.checkout.sessions.create({
-      success_url:
-        `${origin}/payment-success?purchaseId=${newPurchase._id.toString()}&courseId=${courseData._id.toString()}`,
-      cancel_url:
-        `${origin}/payment-cancel?purchaseId=${newPurchase._id.toString()}`,
-      mode: "payment",
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: courseData.courseTitle,
-              description: courseData.courseDescription?.slice(0, 100),
-            },
-            unit_amount: Math.round(net * 100),
+    // ✅ IMPROVED STRIPE CHECKOUT ITEMS
+    const line_items = courses.map((course) => {
+      const price = Number(course.coursePrice || 0);
+      const discount = Number(course.discount || 0);
+
+      const finalPrice =
+        price - (discount * price) / 100;
+
+      const image =
+        course.thumbnail ||
+        course.courseThumbnail ||
+        "https://cdn-icons-png.flaticon.com/512/4076/4076549.png";
+
+      return {
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+
+          product_data: {
+            name: course.courseTitle,
+
+            description:
+              `📚 Category: ${course.category || "Programming"}
+⏱ Duration: ${course.duration || "Self Paced"}
+🏆 Certificate Included
+♾ Lifetime Access
+⭐ Premium Course`,
+
+            images: [image],
           },
+
+          unit_amount: Math.round(
+            finalPrice * 100
+          ),
         },
-      ],
+      };
+    });
+    const session = await stripeInstance.checkout.sessions.create({
+      success_url: `${origin}/payment-success?purchaseId=${purchase._id}`,
+      cancel_url: `${origin}/cart`,
+      mode: "payment",
+      line_items,
       metadata: {
-        purchaseId: newPurchase._id.toString(),
-        courseId: courseData._id.toString(),
+        purchaseId: purchase._id.toString(),
         userId: userId.toString(),
       },
     });
 
-    res.json({ success: true, session_url: session.url });
+    res.json({
+      success: true,
+      session_url: session.url,
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.json({ success: false, message: error.message });
+  }
+};
+
+/* =======================================================
+   🔥 COMPLETE PURCHASE
+======================================================= */
+export const completePurchase = async (req, res) => {
+  try {
+    const { purchaseId } = req.body;
+    const userId = req.auth.userId;
+
+    const purchase = await Purchase.findById(purchaseId);
+
+    if (!purchase) {
+      return res.json({ success: false, message: "Purchase not found" });
+    }
+
+    purchase.status = "completed";
+    await purchase.save();
+
+    await User.updateOne(
+      { _id: userId },
+      { $addToSet: { enrolledCourses: { $each: purchase.courses } } }
+    );
+
+    await Course.updateMany(
+      { _id: { $in: purchase.courses } },
+      { $addToSet: { enrolledStudents: userId } }
+    );
+
+    res.json({ success: true });
+
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
 };
 
 /* =======================================================
-   ✅ GET USER ENROLLED COURSES
+   ✅ GET USER ENROLLED COURSES (UPDATED)
 ======================================================= */
 export const userEnrolledCourses = async (req, res) => {
   try {
@@ -121,14 +181,124 @@ export const userEnrolledCourses = async (req, res) => {
 
     const user = await User.findById(userId).populate({
       path: "enrolledCourses",
+      // 🔥 Include courseContent so lecture count works
       select:
-        "courseTitle thumbnail courseThumbnail duration discount coursePrice category educator",
-      populate: { path: "educator", select: "name email" },
+        "courseTitle courseDescription thumbnail coursePrice discount category duration educator courseContent",
+
+      populate: {
+        path: "educator",
+        select: "name email",
+      },
     });
+
+    if (!user) {
+      return res.json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const enrolledCourses = await Promise.all(
+      user.enrolledCourses.map(async (course) => {
+        const progress =
+          await CourseProgress.findOne({
+            userId,
+            courseId: course._id.toString(),
+          });
+
+        // Total lectures
+        const totalLectures =
+          course.courseContent?.reduce(
+            (sum, chapter) =>
+              sum +
+              (chapter?.chapterContent?.length || 0),
+            0
+          ) || 0;
+
+        // Completed lectures
+        const completedLectures =
+          progress?.lectureCompleted || [];
+
+        // Progress %
+        const progressPercentage =
+          totalLectures > 0
+            ? Math.floor(
+                (completedLectures.length /
+                  totalLectures) *
+                  100
+              )
+            : 0;
+
+        return {
+          ...course.toObject(),
+
+          totalLectures,
+          completedLectures,
+          progress: progressPercentage,
+        };
+      })
+    );
+
+    return res.json({
+      success: true,
+      enrolledCourses,
+      hiddenCourses:
+        user.hiddenCourses || [],
+    });
+
+  } catch (error) {
+    console.log(error);
+
+    return res.json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =======================================================
+   🔥 HIDE COURSE
+======================================================= */
+export const hideCourse = async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { courseId } = req.body;
+
+    const user = await User.findById(userId);
 
     if (!user) return res.json({ success: false, message: "User not found" });
 
-    res.json({ success: true, enrolledCourses: user.enrolledCourses });
+    if (!user.hiddenCourses.includes(courseId)) {
+      user.hiddenCourses.push(courseId);
+    }
+
+    await user.save();
+
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+/* =======================================================
+   🔥 UNHIDE COURSE
+======================================================= */
+export const unhideCourse = async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { courseId } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) return res.json({ success: false, message: "User not found" });
+
+    user.hiddenCourses = user.hiddenCourses.filter(
+      (id) => id.toString() !== courseId
+    );
+
+    await user.save();
+
+    res.json({ success: true });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -142,17 +312,11 @@ export const updateUserCourseProgress = async (req, res) => {
     const userId = req.auth.userId;
     const { courseId, lectureId } = req.body;
 
-    if (!courseId || !lectureId)
-      return res.json({
-        success: false,
-        message: "Missing courseId or lectureId",
-      });
-
     let progress = await CourseProgress.findOne({ userId, courseId });
 
     if (progress) {
       if (progress.lectureCompleted.includes(lectureId))
-        return res.json({ success: true, message: "Already Completed" });
+        return res.json({ success: true });
 
       progress.lectureCompleted.push(lectureId);
       await progress.save();
@@ -164,64 +328,7 @@ export const updateUserCourseProgress = async (req, res) => {
       });
     }
 
-    res.json({ success: true, message: "Progress Updated" });
-  } catch (error) {
-    res.json({ success: false, message: error.message });
-  }
-};
-
-/* =======================================================
-   ✅ GET COURSE PROGRESS
-======================================================= */
-export const getUserCourseProgress = async (req, res) => {
-  try {
-    const userId = req.auth.userId;
-    const { courseId } = req.body;
-
-    const progressData = await CourseProgress.findOne({ userId, courseId });
-
-    res.json({ success: true, progressData });
-  } catch (error) {
-    res.json({ success: false, message: error.message });
-  }
-};
-
-/* =======================================================
-   ⭐ ADD COURSE RATING
-======================================================= */
-export const addUserRating = async (req, res) => {
-  try {
-    const userId = req.auth.userId;
-    const { courseId, rating } = req.body;
-
-    if (!rating || rating < 1 || rating > 5)
-      return res.json({ success: false, message: "Invalid rating" });
-
-    const course = await Course.findById(courseId);
-    if (!course)
-      return res.json({ success: false, message: "Course not found" });
-
-    const user = await User.findById(userId);
-    if (!user)
-      return res.json({ success: false, message: "User not found" });
-
-    const isEnrolled = user.enrolledCourses
-      .map((c) => c.toString())
-      .includes(courseId.toString());
-
-    if (!isEnrolled)
-      return res.json({ success: false, message: "Not enrolled" });
-
-    const existing = course.courseRatings.findIndex(
-      (r) => r.userId.toString() === userId.toString()
-    );
-
-    if (existing > -1) course.courseRatings[existing].rating = rating;
-    else course.courseRatings.push({ userId, rating });
-
-    await course.save();
-
-    res.json({ success: true, message: "Rating saved" });
+    res.json({ success: true });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -235,20 +342,13 @@ export const removeEnrollment = async (req, res) => {
     const userId = req.auth.userId;
     const courseId = req.params.courseId;
 
-    if (!courseId)
-      return res.json({ success: false, message: "Missing Course ID" });
-
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { $pull: { enrolledCourses: courseId } },
       { new: true }
     );
 
-    return res.json({
-      success: true,
-      message: "Enrollment removed successfully!",
-      user: updatedUser,
-    });
+    res.json({ success: true, user: updatedUser });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -271,13 +371,9 @@ export const removeEducatorRole = async (req, res) => {
       publicMetadata: { role: "student" },
     });
 
-    return res.json({
-      success: true,
-      message: "You switched back to Student successfully.",
-      user: updated,
-    });
+    res.json({ success: true, user: updated });
 
   } catch (error) {
-    return res.json({ success: false, message: error.message });
+    res.json({ success: false, message: error.message });
   }
 };

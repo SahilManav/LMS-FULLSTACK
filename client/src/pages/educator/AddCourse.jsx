@@ -1,8 +1,7 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { assets } from "../../assets/assets";
 import { toast } from "react-toastify";
 import Quill from "quill";
-import uniqid from "uniqid";
 import axios from "axios";
 import { AppContext } from "../../context/AppContext";
 
@@ -43,7 +42,7 @@ const AddCourse = () => {
       setChapters((prev) => [
         ...prev,
         {
-          chapterId: uniqid(),
+          chapterId: crypto.randomUUID(),
           chapterTitle: title.trim(),
           chapterContent: [],
           collapsed: false,
@@ -100,7 +99,7 @@ const AddCourse = () => {
               ...c,
               chapterContent: [
                 ...c.chapterContent,
-                { ...lectureDetails, lectureId: uniqid() },
+                { ...lectureDetails, lectureId: crypto.randomUUID() },
               ],
             }
           : c
@@ -169,7 +168,7 @@ const AddCourse = () => {
     setDuration("");
     setRequirements("");
     setWhatYouWillLearn("");
-    quillRef.current.root.innerHTML = "";
+    if (quillRef.current) quillRef.current.root.innerHTML = "";
   };
 
   // ---------------- QUILL INIT ----------------
@@ -179,7 +178,6 @@ const AddCourse = () => {
     }
   }, []);
 
-  // ---------------- UI ----------------
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <form onSubmit={handleSubmit} className="max-w-7xl mx-auto">
@@ -309,10 +307,10 @@ const Select = ({ label, value, onChange, options }) => (
 
 const ThumbnailUpload = ({ image, setImage }) => (
   <label className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center cursor-pointer hover:bg-gray-50">
-    <img src={assets.file_upload_icon} className="w-10 mb-2" />
+    <img src={assets.file_upload_icon} className="w-10 mb-2" alt="upload" />
     <p className="text-sm text-gray-500">Upload Thumbnail</p>
     <input type="file" hidden accept="image/*" onChange={(e) => setImage(e.target.files[0])} />
-    {image && <img src={URL.createObjectURL(image)} className="mt-3 h-16 rounded" />}
+    {image && <img src={URL.createObjectURL(image)} className="mt-3 h-16 rounded" alt="preview" />}
   </label>
 );
 
@@ -327,6 +325,7 @@ const ChapterList = ({ chapters, handleChapter, handleLecture }) => (
               width={14}
               className={`cursor-pointer ${ch.collapsed && "-rotate-90"}`}
               onClick={() => handleChapter("toggle", ch.chapterId)}
+              alt=""
             />
             <span className="font-medium">
               {i + 1}. {ch.chapterTitle}
@@ -336,6 +335,7 @@ const ChapterList = ({ chapters, handleChapter, handleLecture }) => (
             src={assets.cross_icon}
             className="cursor-pointer"
             onClick={() => handleChapter("remove", ch.chapterId)}
+            alt=""
           />
         </div>
 
@@ -350,6 +350,7 @@ const ChapterList = ({ chapters, handleChapter, handleLecture }) => (
                   src={assets.cross_icon}
                   className="cursor-pointer"
                   onClick={() => handleLecture("remove", ch.chapterId, j)}
+                  alt=""
                 />
               </div>
             ))}
@@ -380,15 +381,30 @@ const LecturePopup = ({ lectureDetails, setLectureDetails, onCancel, onAdd }) =>
     <div className="bg-white p-6 rounded-lg w-96">
       <h2 className="text-lg font-semibold mb-4">Add Lecture</h2>
 
-      <Input label="Lecture Title" value={lectureDetails.lectureTitle} onChange={(v) => setLectureDetails({ ...lectureDetails, lectureTitle: v })} />
-      <Input label="Duration (mins)" type="number" value={lectureDetails.lectureDuration} onChange={(v) => setLectureDetails({ ...lectureDetails, lectureDuration: v })} />
-      <Input label="Lecture URL" value={lectureDetails.lectureUrl} onChange={(v) => setLectureDetails({ ...lectureDetails, lectureUrl: v })} />
+      <Input
+        label="Lecture Title"
+        value={lectureDetails.lectureTitle}
+        onChange={(v) => setLectureDetails({ ...lectureDetails, lectureTitle: v })}
+      />
+      <Input
+        label="Duration (mins)"
+        type="number"
+        value={lectureDetails.lectureDuration}
+        onChange={(v) => setLectureDetails({ ...lectureDetails, lectureDuration: v })}
+      />
+      <Input
+        label="Lecture URL"
+        value={lectureDetails.lectureUrl}
+        onChange={(v) => setLectureDetails({ ...lectureDetails, lectureUrl: v })}
+      />
 
       <div className="flex gap-2 mt-3">
         <input
           type="checkbox"
           checked={lectureDetails.isPreviewFree}
-          onChange={(e) => setLectureDetails({ ...lectureDetails, isPreviewFree: e.target.checked })}
+          onChange={(e) =>
+            setLectureDetails({ ...lectureDetails, isPreviewFree: e.target.checked })
+          }
         />
         <span>Free Preview</span>
       </div>

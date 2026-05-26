@@ -3,18 +3,23 @@ import mongoose from "mongoose";
 
 const PurchaseSchema = new mongoose.Schema(
   {
-    courseId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Course",
-      required: true,
-    },
+    // 🔥 MULTIPLE COURSES
+    courses: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Course",
+        required: true,
+      },
+    ],
+
     userId: {
-      // Clerk user id (string)
-      type: String,
+      type: String, // Clerk user id
       ref: "User",
       required: true,
     },
+
     amount: { type: Number, required: true },
+
     status: {
       type: String,
       enum: ["pending", "completed", "failed"],

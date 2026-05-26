@@ -93,7 +93,7 @@ export const addCourse = async (req, res) => {
 };
 
 /* =======================================================
-   ⭐ GET EDUCATOR COURSES (Fixed Format for Frontend)
+   ⭐ GET EDUCATOR COURSES
 ======================================================= */
 export const getEducatorCourses = async (req, res) => {
   try {
@@ -131,7 +131,7 @@ export const getEducatorCourses = async (req, res) => {
 };
 
 /* =======================================================
-   ⭐ EDUCATOR DASHBOARD (Earnings + Students)
+   ⭐ EDUCATOR DASHBOARD (FIXED)
 ======================================================= */
 export const educatorDashboardData = async (req, res) => {
   try {
@@ -141,11 +141,11 @@ export const educatorDashboardData = async (req, res) => {
     const courseIds = courses.map((c) => c._id);
 
     const purchases = await Purchase.find({
-      courseId: { $in: courseIds },
+      courses: { $in: courseIds }, // ✅ FIXED
       status: "completed",
     })
       .populate("userId", "name imageUrl")
-      .populate("courseId", "courseTitle");
+      .populate("courses", "courseTitle"); // ✅ FIXED
 
     const totalEarnings = purchases.reduce(
       (sum, p) => sum + Number(p.amount || 0),
@@ -154,7 +154,7 @@ export const educatorDashboardData = async (req, res) => {
 
     const enrolledStudentsData = purchases.map((p) => ({
       student: p.userId,
-      courseTitle: p.courseId.courseTitle,
+      courseTitle: p.courses[0]?.courseTitle, // ✅ FIXED
       purchaseDate: p.createdAt,
     }));
 
@@ -172,7 +172,7 @@ export const educatorDashboardData = async (req, res) => {
 };
 
 /* =======================================================
-   ⭐ STUDENTS ENROLLED TABLE
+   ⭐ STUDENTS ENROLLED TABLE (FIXED)
 ======================================================= */
 export const getEnrolledStudentsData = async (req, res) => {
   try {
@@ -182,15 +182,15 @@ export const getEnrolledStudentsData = async (req, res) => {
     const courseIds = courses.map((c) => c._id);
 
     const purchases = await Purchase.find({
-      courseId: { $in: courseIds },
+      courses: { $in: courseIds }, // ✅ FIXED
       status: "completed",
     })
       .populate("userId", "name imageUrl")
-      .populate("courseId", "courseTitle");
+      .populate("courses", "courseTitle"); // ✅ FIXED
 
     const enrolledStudents = purchases.map((p) => ({
       student: p.userId,
-      courseTitle: p.courseId.courseTitle,
+      courseTitle: p.courses[0]?.courseTitle, // ✅ FIXED
       purchaseDate: p.createdAt,
     }));
 
@@ -201,7 +201,7 @@ export const getEnrolledStudentsData = async (req, res) => {
 };
 
 /* =======================================================
-   ⭐ DELETE COURSE (Fixed)
+   ⭐ DELETE COURSE
 ======================================================= */
 export const deleteCourse = async (req, res) => {
   try {

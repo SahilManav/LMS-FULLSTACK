@@ -1,9 +1,13 @@
+/* eslint-disable no-unused-vars */
 // client/src/pages/student/CartPage.jsx
 import React, { useContext } from "react";
 import { AppContext } from "../../context/AppContext";
+import axios from "axios";
+import { toast } from "react-toastify";
 
 const CartPage = () => {
-  const { cart, removeFromCart, currency } = useContext(AppContext);
+  const { cart, removeFromCart, currency, backendUrl, getToken } =
+    useContext(AppContext);
 
   const calculateDiscountedPrice = (course) => {
     const price = Number(course.coursePrice || 0);
@@ -16,6 +20,38 @@ const CartPage = () => {
     0
   );
 
+  const handleCheckout = async () => {
+    try {
+      if (!cart.length) {
+        toast.error("Cart is empty");
+        return;
+      }
+
+      const token = await getToken();
+
+      const res = await axios.post(
+        `${backendUrl}/api/user/purchase`,
+        { cart },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!res.data.success) {
+        toast.error(res.data.message);
+        return;
+      }
+
+      window.location.href = res.data.session_url;
+
+    } catch (err) {
+      console.error(err);
+      toast.error("Checkout failed ❌");
+    }
+  };
+
   return (
     <div className="px-6 md:px-20 py-10">
       <h1 className="text-3xl font-semibold mb-6">My Cart</h1>
@@ -27,13 +63,14 @@ const CartPage = () => {
           <div className="grid gap-4">
             {cart.map((course) => (
               <div
-                key={course._id}   // <-- FIXED
+                key={course._id}
                 className="flex items-center justify-between border rounded-xl p-4 shadow-sm bg-white"
               >
                 <div className="flex items-center gap-4">
+                  {/* ✅ FINAL FIX */}
                   <img
-                    src={course.courseThumbnail}
-                    alt=""
+                    src={course.effectiveThumbnail}
+                    alt={course.courseTitle}
                     className="w-24 h-16 object-cover rounded-md bg-gray-100"
                   />
 
@@ -63,7 +100,6 @@ const CartPage = () => {
             ))}
           </div>
 
-          {/* Order Summary */}
           <div className="mt-10 border rounded-xl p-6 bg-white shadow-sm max-w-lg">
             <p className="text-xl font-semibold">Order Summary</p>
 
@@ -75,7 +111,10 @@ const CartPage = () => {
               </span>
             </p>
 
-            <button className="mt-5 bg-blue-600 text-white w-full py-3 rounded-xl text-lg font-medium">
+            <button
+              onClick={handleCheckout}
+              className="mt-5 bg-blue-600 text-white w-full py-3 rounded-xl text-lg font-medium"
+            >
               Proceed to Checkout
             </button>
           </div>

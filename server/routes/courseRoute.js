@@ -15,11 +15,20 @@ import {
 
 const router = express.Router();
 
-/* ------------------ PUBLIC ROUTES ------------------ */
-router.get("/all", getAllCourses); 
-router.get("/details/:id", getCourseById);
+/* ================= PUBLIC ROUTES ================= */
 
-/* ------------------ STUDENT ROUTES ------------------ */
+router.get(
+  "/all",
+  getAllCourses
+);
+
+router.get(
+  "/details/:id",
+  getCourseById
+);
+
+/* ================= STUDENT ROUTES ================= */
+
 router.get(
   "/my-enrollments",
   requireAuth(),
@@ -48,7 +57,8 @@ router.post(
   rateCourse
 );
 
-/* ------------------ EDUCATOR ROUTES ------------------ */
+/* ================= EDUCATOR ROUTES ================= */
+
 router.get(
   "/educator/my-courses",
   requireAuth(),

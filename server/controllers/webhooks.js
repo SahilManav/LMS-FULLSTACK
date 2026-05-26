@@ -108,28 +108,33 @@ export const stripeWebhooks = async (req, res) => {
         return res.status(200).json({ received: true });
       }
 
-      // ✅ Enroll user
-      if (!user.enrolledCourses.includes(courseId)) {
+      // ✅ STEP 1: Mark purchase completed FIRST
+      purchase.status = "completed";
+      await purchase.save();
+
+      // ✅ STEP 2: Enroll user safely (FIXED ObjectId comparison)
+      const alreadyEnrolled = user.enrolledCourses.some(
+        (id) => id.toString() === courseId
+      );
+
+      if (!alreadyEnrolled) {
         user.enrolledCourses.push(courseId);
         await user.save();
       }
 
-      // ✅ Add student to course
-      if (!course.enrolledStudents.includes(userId)) {
+      // ✅ STEP 3: Add student to course safely
+      const alreadyStudent = course.enrolledStudents.some(
+        (id) => id.toString() === userId
+      );
+
+      if (!alreadyStudent) {
         course.enrolledStudents.push(userId);
         await course.save();
       }
 
-      // ✅ Mark purchase completed
-      purchase.status = "completed";
-      await purchase.save();
-
       console.log(
         `🎉 Enrollment success: ${user.email} → ${course.courseTitle}`
       );
-
-      // 🔍 VERY IMPORTANT DEBUG LOG
-      console.log("📨 PURCHASE EMAIL WILL BE SENT TO:", user.email);
 
       // 📧 SEND CONFIRMATION EMAIL
       await sendEmail({

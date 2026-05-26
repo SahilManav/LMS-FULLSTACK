@@ -1,53 +1,55 @@
-import React, { useEffect, useState, useContext } from "react";
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable no-unused-vars */
+import React, { useEffect, useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
-import { AppContext } from "../../context/AppContext"; // ✅ Get getToken()
+import { AppContext } from "../../context/AppContext";
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
-  const params = new URLSearchParams(window.location.search);
-
-  const courseId = params.get("courseId");
-  const purchaseId = params.get("purchaseId");
-
   const { backendUrl, getToken } = useContext(AppContext);
 
-  const [checking, setChecking] = useState(true);
+  const params = new URLSearchParams(window.location.search);
+  const purchaseId = params.get("purchaseId"); // 🔥 NEW
 
-  // 🔥 CHECK IF USER IS ENROLLED
-  const checkEnrollment = async () => {
+  const [status, setStatus] = useState("processing");
+
+  const completePurchase = async () => {
     try {
-      const token = await getToken(); // ⬅️ CLERK TOKEN FIX
+      const token = await getToken();
 
-      const res = await axios.get(`${backendUrl}/api/user/enrolled-courses`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.data.success) {
-        const enrolled = res.data.enrolledCourses.some(
-          (c) => c._id === courseId
-        );
-
-        if (enrolled) {
-          navigate(`/player/${courseId}`);
-          return;
+      // 🔥 COMPLETE PURCHASE (MULTI COURSE ENROLL)
+      await axios.post(
+        `${backendUrl}/api/user/complete-purchase`,
+        { purchaseId },
+        {
+          headers: { Authorization: `Bearer ${token}` },
         }
-      }
+      );
 
-      // Retry after delay
-      setTimeout(checkEnrollment, 1500);
-    } catch {
-      setTimeout(checkEnrollment, 1500);
+      setStatus("success");
+
+      setTimeout(() => {
+        navigate("/my-enrollments");
+      }, 1200);
+
+    } catch (error) {
+      console.error("Complete purchase error:", error);
+
+      setStatus("failed");
+
+      setTimeout(() => {
+        navigate("/my-enrollments");
+      }, 2000);
     }
   };
 
   useEffect(() => {
-    if (courseId) {
-      checkEnrollment();
+    if (purchaseId) {
+      completePurchase(); // 🚀 main trigger
     }
-  }, [courseId]);
-
+  }, [purchaseId]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white">
@@ -61,20 +63,30 @@ const PaymentSuccess = () => {
           initial={{ rotate: -180 }}
           animate={{ rotate: 0 }}
           transition={{ duration: 0.6 }}
-          className="text-green-600 text-7xl mb-4"
+          className="text-7xl mb-4"
         >
-          ✅
+          {status === "success" ? "✅" : status === "failed" ? "❌" : "⏳"}
         </motion.div>
 
         <h1 className="text-4xl font-bold text-gray-800 mb-2">
-          Payment Successful
+          {status === "success"
+            ? "Enrollment Confirmed"
+            : status === "failed"
+            ? "Something went wrong"
+            : "Processing Payment"}
         </h1>
 
         <p className="text-gray-500 text-lg mb-4">
-          Verifying your enrollment…
+          {status === "success"
+            ? "Redirecting to your courses..."
+            : status === "failed"
+            ? "Redirecting to your enrollments..."
+            : "Finalizing your purchase..."}
         </p>
 
-        <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+        {status !== "success" && status !== "failed" && (
+          <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+        )}
       </motion.div>
     </div>
   );

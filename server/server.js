@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
@@ -9,12 +10,19 @@ import userRouter from "./routes/userRoutes.js";
 import educatorRouter from "./routes/educatorRoutes.js";
 import courseRouter from "./routes/courseRoute.js";
 import educatorCourseRouter from "./routes/educatorCourseRoute.js";
+import progressRouter from "./routes/progressRoute.js";
+import certificateRouter from "./routes/certificateRoute.js";
+import lectureNoteRoutes from "./routes/lectureNoteRoutes.js";
+import discussionRoutes from "./routes/discussionRoutes.js";
+import classroomRoutes from "./routes/classroomRoutes.js";
+import submissionRoutes from "./routes/submissionRoutes.js";
 
 import { clerkMiddleware } from "@clerk/express";
 import { clerkWebhooks, stripeWebhooks } from "./controllers/webhooks.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
+import leaderboardRoutes from "./routes/leaderboardRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,13 +40,14 @@ await connectCloudinary();
 ====================================================== */
 app.use(
   cors({
-    origin: "*",
+    origin: ["http://localhost:5173"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
 );
 
 /* ======================================================
-   🔔 STRIPE WEBHOOKS (before JSON parser)
+   🔔 STRIPE WEBHOOKS
 ====================================================== */
 app.post(
   "/api/webhooks/stripe",
@@ -51,6 +60,11 @@ app.post(
 ====================================================== */
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+/* ======================================================
+   🖼️ SERVE STATIC IMAGES
+====================================================== */
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* ======================================================
    🔐 CLERK AUTH
@@ -68,24 +82,26 @@ app.use((req, _res, next) => {
 /* ======================================================
    📌 API ROUTES
 ====================================================== */
+
 app.get("/", (_req, res) => {
   res.send("✅ Edemy API is running successfully!");
 });
 
-// Clerk webhook
 app.post("/api/webhooks/clerk", express.json(), clerkWebhooks);
 
-// User Routes
 app.use("/api/user", userRouter);
-
-// Educator Profile Routes
 app.use("/api/educator", educatorRouter);
-
-// ⭐ Educator Course Management
 app.use("/api/educator/course", educatorCourseRouter);
-
-// Public + Student Course Routes
 app.use("/api/course", courseRouter);
+app.use("/api/progress", progressRouter);
+app.use("/api/certificate", certificateRouter);
+app.use("/api/notes", lectureNoteRoutes);
+app.use("/api/discussion", discussionRoutes);
+app.use("/api/classroom", classroomRoutes);
+app.use("/api/submission", submissionRoutes);
+
+// ✅ FIXED POSITION (IMPORTANT)
+app.use("/api/leaderboard", leaderboardRoutes);
 
 /* ======================================================
    ❌ 404
@@ -106,6 +122,7 @@ app.use((err, _req, res, _next) => {
    🚀 START SERVER
 ====================================================== */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

@@ -12,8 +12,12 @@
   "dependencies": {
     "@clerk/clerk-react": "^5.17.1",
     "axios": "^1.7.8",
+    "baseline-browser-mapping": "^2.10.31",
+    "caniuse-lite": "^1.0.30001793",
     "framer-motion": "^12.23.24",
     "humanize-duration": "^3.32.1",
+    "jspdf": "^4.2.1",
+    "qrcode": "^1.5.4",
     "quill": "^2.0.3",
     "rc-progress": "^4.0.0",
     "react": "^18.3.1",
@@ -22,8 +26,7 @@
     "react-router-dom": "^7.0.1",
     "react-simple-star-rating": "^5.1.7",
     "react-toastify": "^10.0.6",
-    "react-youtube": "^10.1.0",
-    "uniqid": "^5.4.0"
+    "react-youtube": "^10.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

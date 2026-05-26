@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useContext, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { assets } from "../../assets/assets";
@@ -16,10 +17,19 @@ const CourseCard = ({ course = {} }) => {
     addToCart,
   } = useContext(AppContext);
 
-  const thumb =
-    course.effectiveThumbnail ||
-    course.thumbnail ||
+  // 🔥 SAFE IMAGE LOGIC (UPDATED — NOTHING REMOVED)
+  const rawThumb =
+    course?.effectiveThumbnail ||
+    course?.thumbnail ||
     fallbackThumb;
+
+  const thumb =
+    rawThumb && rawThumb.startsWith("http")
+      ? rawThumb
+      : fallbackThumb;
+
+  // 🔥 DEBUG (REMOVE LATER)
+  console.log("COURSE IMAGE:", rawThumb);
 
   const rating = calculateRating?.(course) || 0;
   const ratingCount = course.courseRatings?.length || 0;
@@ -74,13 +84,11 @@ const CourseCard = ({ course = {} }) => {
       : descriptionPreview;
 
   return (
-    /* 🔥 ONE COMMON HOVER ZONE (CARD + PREVIEW) */
     <div
       className="relative"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      {/* COURSE CARD */}
       <Link
         to={`/course/${course._id}`}
         className="block transition-all duration-150 hover:-translate-y-1 hover:shadow-lg rounded-lg"
@@ -90,7 +98,7 @@ const CourseCard = ({ course = {} }) => {
           <div className="relative">
             <img
               src={thumb}
-              alt={course.courseTitle}
+              alt={course.courseTitle || "course"}
               className="w-full h-44 object-cover"
             />
 
@@ -157,7 +165,7 @@ const CourseCard = ({ course = {} }) => {
         </div>
       </Link>
 
-      {/* 🔥 PREMIUM RIGHT-SIDE HOVER PREVIEW */}
+      {/* PREVIEW */}
       <div
         className={`absolute left-full top-20 ml-4 w-72
         bg-white border rounded-xl shadow-2xl p-3 z-40

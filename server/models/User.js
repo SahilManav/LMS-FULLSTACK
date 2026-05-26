@@ -1,4 +1,3 @@
-// server/models/User.js
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
@@ -9,15 +8,27 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true },
     imageUrl: { type: String, default: "" },
 
-    // ⭐ ROLE FIELD (Important)
+    // ⭐ ROLE FIELD
     role: {
       type: String,
       enum: ["student", "educator"],
       default: "student",
     },
 
-    // Courses user is enrolled in
+    // 🏆 LEADERBOARD FIELDS
+    score: { type: Number, default: 0 },
+    coursesCompleted: { type: Number, default: 0 },
+
+    // ✅ Enrolled courses
     enrolledCourses: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Course",
+      },
+    ],
+
+    // 🔥 Hidden courses
+    hiddenCourses: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Course",
@@ -27,9 +38,10 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Prevent undefined array fields
+// Prevent undefined arrays
 userSchema.pre("save", function (next) {
   if (!this.enrolledCourses) this.enrolledCourses = [];
+  if (!this.hiddenCourses) this.hiddenCourses = [];
   next();
 });
 

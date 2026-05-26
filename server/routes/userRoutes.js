@@ -1,41 +1,43 @@
 import express from 'express';
 import {
-  addUserRating,
-  getUserCourseProgress,
   getUserData,
   purchaseCourse,
-  updateUserCourseProgress,
   userEnrolledCourses,
+  hideCourse,
+  unhideCourse,
+  updateUserCourseProgress,
   removeEnrollment,
-  removeEducatorRole
+  removeEducatorRole,
+  completePurchase
 } from '../controllers/userController.js';
 
 import { requireAuth } from '@clerk/express';
 
 const userRouter = express.Router();
 
-// Get user Data
+// User Data
 userRouter.get('/data', requireAuth(), getUserData);
 
-// Purchase Course
+// Purchase (multi-course)
 userRouter.post('/purchase', requireAuth(), purchaseCourse);
 
-// Get enrolled courses
+// Complete purchase
+userRouter.post('/complete-purchase', requireAuth(), completePurchase);
+
+// Enrolled Courses
 userRouter.get('/enrolled-courses', requireAuth(), userEnrolledCourses);
 
-// Update progress
+// Hide / Unhide
+userRouter.post('/hide-course', requireAuth(), hideCourse);
+userRouter.post('/unhide-course', requireAuth(), unhideCourse);
+
+// Progress (only update)
 userRouter.post('/update-course-progress', requireAuth(), updateUserCourseProgress);
-
-// Get progress
-userRouter.post('/get-course-progress', requireAuth(), getUserCourseProgress);
-
-// Add rating
-userRouter.post('/add-rating', requireAuth(), addUserRating);
 
 // Remove enrollment
 userRouter.delete('/remove-enrollment/:courseId', requireAuth(), removeEnrollment);
 
-// ⭐ Switch back to student
+// Switch role
 userRouter.get('/remove-educator', requireAuth(), removeEducatorRole);
 
 export default userRouter;

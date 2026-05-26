@@ -1,5 +1,7 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react-refresh/only-export-components */
 import axios from "axios";
-import { createContext, useEffect, useState } from "react";
+import { createContext, useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth, useUser } from "@clerk/clerk-react";
@@ -8,7 +10,9 @@ import humanizeDuration from "humanize-duration";
 export const AppContext = createContext();
 
 export const AppContextProvider = (props) => {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+  const backendUrl =
+    import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+
   const currency = import.meta.env.VITE_CURRENCY;
 
   const navigate = useNavigate();
@@ -24,6 +28,8 @@ export const AppContextProvider = (props) => {
   const [userData, setUserData] = useState(null);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [recentCourses, setRecentCourses] = useState([]);
+
+  const hasFetchedRef = useRef(false);
 
   /* ========================================
      CART
@@ -44,9 +50,31 @@ export const AppContextProvider = (props) => {
     localStorage.setItem("lms_cart", JSON.stringify(items));
   };
 
+  const clearCart = () => {
+    setCart([]);
+    localStorage.removeItem("lms_cart");
+  };
+
+  const removePurchasedFromCart = (purchasedIds) => {
+    const updated = cart.filter(
+      (item) => !purchasedIds.includes(item._id)
+    );
+
+    saveCart(updated);
+  };
+
   const addToCart = (courseObj) => {
     const exists = cart.some((c) => c._id === courseObj._id);
+
     if (exists) return toast.info("Already in cart");
+
+    const alreadyPurchased = enrolledCourses.some(
+      (c) => c._id === courseObj._id
+    );
+
+    if (alreadyPurchased) {
+      return toast.info("Already purchased");
+    }
 
     saveCart([...cart, courseObj]);
     toast.success("Added to cart");
@@ -60,14 +88,16 @@ export const AppContextProvider = (props) => {
   const cartCount = cart.length;
 
   /* ========================================
-     FETCH ALL COURSES  (FIXED + IMAGE MAPPING)
+     FETCH ALL COURSES
   ======================================== */
+
   const fetchAllCourses = async () => {
     try {
-      const { data } = await axios.get(`${backendUrl}/api/course/all`);
+      const { data } = await axios.get(
+        `${backendUrl}/api/course/all`
+      );
 
       if (data.success) {
-        // ⭐ Normalize course images
         const normalized = data.courses.map((c) => ({
           ...c,
           courseThumbnail:
@@ -90,25 +120,29 @@ export const AppContextProvider = (props) => {
   /* ========================================
      FETCH USER DATA
   ======================================== */
+
   const fetchUserData = async () => {
     try {
       const token = await getToken();
-      const { data } = await axios.get(`${backendUrl}/api/user/data`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+
+      const { data } = await axios.get(
+        `${backendUrl}/api/user/data`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (data.success) {
         setUserData(data.user);
         setIsEducator(data.user.role === "educator");
-      } else {
-        toast.error(data.message);
       }
     } catch (error) {
       toast.error(error.message);
     }
   };
 
-  /* Detect Educator Role from Clerk */
   useEffect(() => {
     if (user?.publicMetadata?.role === "educator") {
       setIsEducator(true);
@@ -116,60 +150,139 @@ export const AppContextProvider = (props) => {
   }, [user]);
 
   /* ========================================
-     FETCH ENROLLED COURSES
-  ======================================== */
-  const fetchUserEnrolledCourses = async () => {
-    try {
-      const token = await getToken();
-      const { data } = await axios.get(
-        `${backendUrl}/api/user/enrolled-courses`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+   FETCH ENROLLED COURSES
+======================================== */
 
-      if (data.success) {
-        setEnrolledCourses([...data.enrolledCourses].reverse());
+const fetchUserEnrolledCourses = async () => {
+  try {
+    const token = await getToken();
+
+    const { data } = await axios.get(
+      `${backendUrl}/api/user/enrolled-courses`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       }
-    } catch (error) {
-      toast.error(error.message);
+    );
+
+    if (data.success) {
+
+      // ✅ Use backend values directly
+      const courses = data.enrolledCourses
+        .map((course) => ({
+          ...course,
+
+          // keep backend values
+          totalLectures:
+            course.totalLectures || 0,
+
+          completedLectures:
+            course.completedLectures || [],
+
+          progress:
+            course.progress || 0,
+
+          courseThumbnail:
+            course.courseThumbnail ||
+            course.thumbnail ||
+            course.effectiveThumbnail ||
+            "",
+        }))
+        .reverse();
+
+      setEnrolledCourses(courses);
+
+      removePurchasedFromCart(
+        courses.map((c) => c._id)
+      );
     }
-  };
+
+  } catch (error) {
+    console.log(error);
+    toast.error(
+      "Failed to load enrolled courses"
+    );
+  }
+};
 
   /* ========================================
-     COURSE HELPER FUNCTIONS
+     HELPERS
   ======================================== */
+
   const calculateChapterTime = (chapter) => {
-    if (!Array.isArray(chapter?.chapterContent)) return "—";
+    if (!Array.isArray(chapter?.chapterContent))
+      return "—";
+
     let sum = 0;
+
     chapter.chapterContent.forEach((lec) => {
-      sum += Number(lec?.lectureDuration || 0);
+      sum += Number(
+        lec?.lectureDuration || 0
+      );
     });
-    return humanizeDuration(sum * 60 * 1000, { units: ["h", "m"] });
+
+    return humanizeDuration(
+      sum * 60 * 1000,
+      {
+        units: ["h", "m"],
+      }
+    );
   };
 
   const calculateCourseDuration = (course) => {
-    if (!Array.isArray(course?.courseContent)) return "—";
+    if (!Array.isArray(course?.courseContent))
+      return "—";
+
     let total = 0;
+
     course.courseContent.forEach((ch) =>
       ch.chapterContent?.forEach(
-        (lec) => (total += Number(lec?.lectureDuration || 0))
+        (lec) =>
+          (total += Number(
+            lec?.lectureDuration || 0
+          ))
       )
     );
-    return humanizeDuration(total * 60 * 1000, { units: ["h", "m"] });
+
+    return humanizeDuration(
+      total * 60 * 1000,
+      {
+        units: ["h", "m"],
+      }
+    );
   };
 
   const calculateRating = (course) => {
-    if (!Array.isArray(course?.courseRatings)) return 0;
-    const total = course.courseRatings.reduce(
-      (sum, r) => sum + (r?.rating || 0),
-      0
+    if (!Array.isArray(course?.courseRatings))
+      return 0;
+
+    const total =
+      course.courseRatings.reduce(
+        (sum, r) =>
+          sum + (r?.rating || 0),
+        0
+      );
+
+    return (
+      Math.floor(
+        total /
+          course.courseRatings.length
+      ) || 0
     );
-    return Math.floor(total / course.courseRatings.length) || 0;
   };
 
-  const calculateNoOfLectures = (course) => {
-    if (!Array.isArray(course?.courseContent)) return 0;
+  const calculateNoOfLectures = (
+    course
+  ) => {
+    if (!Array.isArray(course?.courseContent))
+      return 0;
+
     return course.courseContent.reduce(
-      (sum, chap) => sum + (chap?.chapterContent?.length || 0),
+      (sum, chap) =>
+        sum +
+        (chap?.chapterContent?.length ||
+          0),
       0
     );
   };
@@ -177,12 +290,15 @@ export const AppContextProvider = (props) => {
   /* ========================================
      INITIAL LOAD
   ======================================== */
+
   useEffect(() => {
     fetchAllCourses();
   }, []);
 
   useEffect(() => {
-    if (user) {
+    if (user && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+
       fetchUserData();
       fetchUserEnrolledCourses();
     }
@@ -191,6 +307,7 @@ export const AppContextProvider = (props) => {
   /* ========================================
      CONTEXT VALUE
   ======================================== */
+
   const value = {
     backendUrl,
     currency,
@@ -222,6 +339,8 @@ export const AppContextProvider = (props) => {
     addToCart,
     removeFromCart,
     cartCount,
+    clearCart,
+    removePurchasedFromCart,
 
     recentCourses,
     setRecentCourses,
@@ -230,6 +349,8 @@ export const AppContextProvider = (props) => {
   };
 
   return (
-    <AppContext.Provider value={value}>{props.children}</AppContext.Provider>
+    <AppContext.Provider value={value}>
+      {props.children}
+    </AppContext.Provider>
   );
 };

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React from 'react';
 import Footer from '../../components/student/Footer';
 import Hero from '../../components/student/Hero';

@@ -3,12 +3,24 @@ import Course from "../models/Course.js";
 import User from "../models/User.js";
 
 /* =======================================================
-   ⭐ Helper: Return correct thumbnail
+   ⭐ Helper: Return correct thumbnail (FIXED ONLY THIS)
 ======================================================= */
-const getThumbnail = (course) =>
-  course.thumbnail ||
-  course.courseThumbnail ||
-  "https://cdn-icons-png.flaticon.com/512/4076/4076549.png";
+const getThumbnail = (course) => {
+  if (course.thumbnail && course.thumbnail.startsWith("http")) {
+    return course.thumbnail;
+  }
+
+  if (course.courseThumbnail && course.courseThumbnail.startsWith("http")) {
+    return course.courseThumbnail;
+  }
+
+  // support local uploads
+  if (course.courseThumbnail) {
+    return `http://localhost:5000/${course.courseThumbnail}`;
+  }
+
+  return "https://cdn-icons-png.flaticon.com/512/4076/4076549.png";
+};
 
 /* =======================================================
    ⭐ GET ALL COURSES (PUBLIC LIST)
@@ -334,7 +346,7 @@ export const rateCourse = async (req, res) => {
 };
 
 /* =======================================================
-   ⭐ NEW — EDUCATOR: GET ALL COURSES CREATED BY EDUCATOR
+   ⭐ EDUCATOR COURSES
 ======================================================= */
 export const getEducatorCourses = async (req, res) => {
   try {
@@ -378,7 +390,7 @@ export const getEducatorCourses = async (req, res) => {
 };
 
 /* =======================================================
-   ⭐ NEW — EDUCATOR: DELETE COURSE
+   ⭐ DELETE COURSE
 ======================================================= */
 export const deleteCourse = async (req, res) => {
   try {
@@ -401,16 +413,48 @@ export const deleteCourse = async (req, res) => {
       });
     }
 
+    // Delete course
     await Course.deleteOne({ _id: courseId });
+
+    // 🔥 Remove deleted course from users
+    await User.updateMany(
+      {},
+      {
+        $pull: {
+          enrolledCourses: courseId,
+        },
+      }
+    );
+
+    // 🔥 If all courses gone → reset leaderboard stats
+    const remainingCourses =
+      await Course.countDocuments();
+
+    if (remainingCourses === 0) {
+      await User.updateMany(
+        {},
+        {
+          $set: {
+            score: 0,
+            coursesCompleted: 0,
+            enrolledCourses: [],
+          },
+        }
+      );
+    }
 
     return res.json({
       success: true,
       message: "Course deleted successfully",
+      refreshLeaderboard: true,
     });
+
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Error deleting course: " + error.message,
+      message:
+        "Error deleting course: " +
+        error.message,
     });
   }
 };

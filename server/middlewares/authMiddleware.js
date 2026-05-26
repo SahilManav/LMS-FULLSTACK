@@ -2,7 +2,7 @@
 import { clerkClient } from "@clerk/express";
 
 /* =======================================================
-   ✅ General Auth Middleware (Students + Educators)
+   ✅ General Auth Middleware
 ======================================================= */
 export const protect = async (req, res, next) => {
   try {
@@ -11,21 +11,12 @@ export const protect = async (req, res, next) => {
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized: No valid token",
+        message: "Not authenticated",
       });
     }
 
-    // Fetch user from Clerk
     const user = await clerkClient.users.getUser(userId);
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // Attach clean user object
     req.user = {
       _id: user.id,
       email: user.emailAddresses?.[0]?.emailAddress || "",
@@ -39,7 +30,7 @@ export const protect = async (req, res, next) => {
     console.error("❌ Protect Middleware Error:", error);
     return res.status(401).json({
       success: false,
-      message: "Authorization failed: " + error.message,
+      message: "Authorization failed",
     });
   }
 };
@@ -54,18 +45,11 @@ export const protectEducator = async (req, res, next) => {
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized: No valid token",
+        message: "Not authenticated",
       });
     }
 
     const user = await clerkClient.users.getUser(userId);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
 
     if (user.publicMetadata?.role !== "educator") {
       return res.status(403).json({
@@ -87,7 +71,7 @@ export const protectEducator = async (req, res, next) => {
     console.error("❌ protectEducator error:", error);
     return res.status(401).json({
       success: false,
-      message: "Authorization failed: " + error.message,
+      message: "Authorization failed",
     });
   }
 };
