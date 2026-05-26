@@ -1,36 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 
-const Rating = ({ initialRating, onRate }) => {
+const Rating = ({ initialRating = 0, onRate }) => {
+  const [rating, setRating] = useState(initialRating);
+  const [hover, setHover] = useState(null);
 
-    const [rating, setRating] = useState(initialRating || 0);
+  useEffect(() => {
+    setRating(initialRating);
+  }, [initialRating]);
 
-    const handleRating = (value) => {
-        setRating(value);
-        if (onRate) onRate(value);
-    };
+  const handleRating = (value) => {
+    setRating(value);
+    if (onRate) onRate(value);
+  };
 
-    useEffect(() => {
-        if (initialRating) {
-            setRating(initialRating);
-        }
-    }, [initialRating]);
-
-    return (
-        <div className="flex gap-2">
-            {Array.from({ length: 5 }, (_, index) => {
-                const starValue = index + 1;
-                return (
-                    <span
-                        key={index}
-                        className={`text-xl sm:text-2xl cursor-pointer transition-colors ${starValue <= rating ? 'text-yellow-500' : 'text-gray-400'}`}
-                        onClick={() => handleRating(starValue)}
-                    >
-                        &#9733;
-                    </span>
-                );
-            })}
-        </div>
-    );
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span
+          key={star}
+          className={`text-2xl cursor-pointer transition-colors duration-200 ${
+            star <= (hover || rating) ? "text-yellow-400" : "text-gray-300"
+          }`}
+          onMouseEnter={() => setHover(star)}
+          onMouseLeave={() => setHover(null)}
+          onClick={() => handleRating(star)}
+        >
+          &#9733;
+        </span>
+      ))}
+    </div>
+  );
 };
 
 export default Rating;

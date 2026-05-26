@@ -1,25 +1,47 @@
-import express from 'express'
-import { addCourse, educatorDashboardData, getEducatorCourses, getEnrolledStudentsData, updateRoleToEducator } from '../controllers/educatorController.js';
-import upload from '../configs/multer.js';
-import { protectEducator } from '../middlewares/authMiddleware.js';
+// server/routes/educatorRouter.js
+import express from "express";
+import {
+  addCourse,
+  educatorDashboardData,
+  getEducatorCourses,
+  getEnrolledStudentsData,
+  updateRoleToEducator,
+  deleteCourse,
+} from "../controllers/educatorController.js";
 
+import upload from "../configs/multer.js";
+import { protectEducator } from "../middlewares/authMiddleware.js";
+import { requireAuth } from "@clerk/express";
 
-const educatorRouter = express.Router()
+const educatorRouter = express.Router();
 
-// Add Educator Role 
-educatorRouter.get('/update-role', updateRoleToEducator)
+// Become educator (Clerk + Mongo)
+educatorRouter.get("/update-role", requireAuth(), updateRoleToEducator);
 
-// Add Courses 
-educatorRouter.post('/add-course', upload.single('image'), protectEducator, addCourse)
+// Add course
+educatorRouter.post(
+  "/add-course",
+  requireAuth(),
+  protectEducator,
+  upload.single("image"),
+  addCourse
+);
 
-// Get Educator Courses 
-educatorRouter.get('/courses', protectEducator, getEducatorCourses)
+// Get educator courses
+educatorRouter.get("/courses", requireAuth(), protectEducator, getEducatorCourses);
 
-// Get Educator Dashboard Data
-educatorRouter.get('/dashboard', protectEducator, educatorDashboardData)
+// Dashboard
+educatorRouter.get("/dashboard", requireAuth(), protectEducator, educatorDashboardData);
 
-// Get Educator Students Data
-educatorRouter.get('/enrolled-students', protectEducator, getEnrolledStudentsData)
+// List of enrolled students
+educatorRouter.get(
+  "/enrolled-students",
+  requireAuth(),
+  protectEducator,
+  getEnrolledStudentsData
+);
 
+// Delete course (educator)
+educatorRouter.delete("/delete/:id", requireAuth(), protectEducator, deleteCourse);
 
 export default educatorRouter;

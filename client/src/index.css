@@ -4,40 +4,118 @@
 @tailwind components;
 @tailwind utilities;
 
-*{
-  font-family: Outfit;
+/* ---------------- GLOBAL RESET ---------------- */
+* {
+  font-family: 'Outfit', sans-serif;
 }
 
+/* ---------------- ROOT BEHAVIOR ---------------- */
 @layer base {
   html {
     scroll-behavior: smooth;
   }
+
+  body {
+    min-height: 100vh;
+    overflow-y: auto;
+    background-color: #f8fafc;
+    /* slate-50 */
+  }
 }
 
-::-webkit-scrollbar{
-  display: none;
+/* ---------------- SCROLLBAR (SaaS Style) ---------------- */
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-.rich-text { font-size: 15px; color: #7A7B7D; }
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-.rich-text p { margin-bottom: 16px; }
+::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  /* slate-300 */
+  border-radius: 6px;
+}
 
-.rich-text h1 { font-size: 36px; font-weight: 800; color: #252525; margin: 32px 0; }
+::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+  /* slate-400 */
+}
 
-.rich-text h2 { font-size: 22px; font-weight: 700; color: #252525; margin: 24px 0; }
+/* Firefox support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
 
-.rich-text h3 { font-size: 18px; font-weight: 600; color: #333333; margin: 20px 0; }
+/* ---------------- RICH TEXT (Quill Output) ---------------- */
+.rich-text {
+  font-size: 15px;
+  color: #7a7b7d;
+  line-height: 1.7;
+}
 
-.rich-text h4 { font-size: 16px; font-weight: 500; color: #444444; margin: 16px 0; }
+.rich-text p {
+  margin-bottom: 16px;
+}
 
-.rich-text h5 { font-size: 14px; font-weight: 400; color: #555555; margin: 12px 0; }
+.rich-text h1 {
+  font-size: 36px;
+  font-weight: 800;
+  color: #252525;
+  margin: 32px 0;
+}
 
-.rich-text h6 { font-size: 12px; font-weight: 400; color: #666666; margin: 8px 0; }
+.rich-text h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #252525;
+  margin: 24px 0;
+}
 
-.rich-text strong { font-weight: 700; }
+.rich-text h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333333;
+  margin: 20px 0;
+}
 
-.rich-text ol { margin-left: 30px; list-style-type: decimal; }
+.rich-text h4 {
+  font-size: 16px;
+  font-weight: 500;
+  color: #444444;
+  margin: 16px 0;
+}
 
-.rich-text ul { margin-left: 30px; list-style-type: disc; }
+.rich-text h5 {
+  font-size: 14px;
+  font-weight: 400;
+  color: #555555;
+  margin: 12px 0;
+}
 
-.rich-text li { margin-bottom: 8px; }
+.rich-text h6 {
+  font-size: 12px;
+  font-weight: 400;
+  color: #666666;
+  margin: 8px 0;
+}
+
+.rich-text strong {
+  font-weight: 700;
+}
+
+.rich-text ol {
+  margin-left: 30px;
+  list-style-type: decimal;
+}
+
+.rich-text ul {
+  margin-left: 30px;
+  list-style-type: disc;
+}
+
+.rich-text li {
+  margin-bottom: 8px;
+}

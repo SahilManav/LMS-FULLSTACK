@@ -1,17 +1,24 @@
-// controllers/webhooks.js
+// server/controllers/webhooks.js
 import { Webhook } from "svix";
-import User from "../models/User.js";
 import stripe from "stripe";
-import { Purchase } from "../models/Purchase.js";
+import User from "../models/User.js";
 import Course from "../models/Course.js";
+import { Purchase } from "../models/Purchase.js";
+
+// 📧 Email utils
+import { sendEmail } from "../utils/sendEmail.js";
+import { purchaseSuccessTemplate } from "../utils/emailTemplates.js";
 
 const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
 
-// ------------------ Clerk Webhooks ------------------
+/* =======================================================
+   CLERK WEBHOOKS — USER SYNC
+======================================================= */
 export const clerkWebhooks = async (req, res) => {
   try {
-    const whook = new Webhook(process.env.CLERK_WEBHOOK_SECRET);
-    await whook.verify(JSON.stringify(req.body), {
+    const wh = new Webhook(process.env.CLERK_WEBHOOK_SECRET);
+
+    await wh.verify(JSON.stringify(req.body), {
       "svix-id": req.headers["svix-id"],
       "svix-timestamp": req.headers["svix-timestamp"],
       "svix-signature": req.headers["svix-signature"],
@@ -19,40 +26,49 @@ export const clerkWebhooks = async (req, res) => {
 
     const { data, type } = req.body;
 
+    const email = data.email_addresses?.[0]?.email_address || "";
+    const name = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim();
+    const imageUrl = data.image_url || "";
+    const role = data.public_metadata?.role || "student";
+
     if (type === "user.created") {
       await User.create({
         _id: data.id,
-        email: data.email_addresses[0].email_address,
-        name: `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim(),
-        imageUrl: data.image_url,
+        email,
+        name,
+        imageUrl,
+        role,
+        enrolledCourses: [],
       });
-    } else if (type === "user.updated") {
-      await User.findByIdAndUpdate(
-        data.id,
-        {
-          email: data.email_addresses[0].email_address,
-          name: `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim(),
-          imageUrl: data.image_url,
-        },
-        { new: true }
-      );
-    } else if (type === "user.deleted") {
+    }
+
+    if (type === "user.updated") {
+      await User.findByIdAndUpdate(data.id, {
+        email,
+        name,
+        imageUrl,
+        role,
+      });
+    }
+
+    if (type === "user.deleted") {
       await User.findByIdAndDelete(data.id);
     }
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
-    console.error("❌ Clerk Webhook Error:", error);
-    res.status(400).json({ success: false, message: error.message });
+    console.error("❌ Clerk Webhook Error:", error.message);
+    return res.status(400).json({ success: false });
   }
 };
 
-// ------------------ Stripe Webhooks ------------------
+/* =======================================================
+   STRIPE WEBHOOKS — PAYMENT → ENROLL → EMAIL
+======================================================= */
 export const stripeWebhooks = async (req, res) => {
   let event;
 
   try {
-    // Stripe signature verification using raw body
     const sig = req.headers["stripe-signature"];
     event = stripeInstance.webhooks.constructEvent(
       req.body,
@@ -60,60 +76,77 @@ export const stripeWebhooks = async (req, res) => {
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
-    console.error("❌ Stripe signature error:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error("❌ Stripe Signature Verification Failed:", err.message);
+    return res.status(400).send("Webhook Error");
   }
 
-  console.log(`✅ Stripe Event Received: ${event.type}`);
+  console.log("⚡ Stripe Event:", event.type);
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
-    const { purchaseId } = session.metadata || {};
 
-    if (!purchaseId) {
-      console.warn("⚠️ No purchaseId in metadata");
-      return res.status(200).json({ success: true });
+    const purchaseId = session.metadata?.purchaseId;
+    const courseId = session.metadata?.courseId;
+    const userId = session.metadata?.userId;
+
+    if (!purchaseId || !courseId || !userId) {
+      console.warn("⚠ Missing Stripe metadata");
+      return res.status(200).json({ received: true });
     }
 
     try {
       const purchase = await Purchase.findById(purchaseId);
-      if (!purchase) {
-        console.warn("⚠️ Purchase not found:", purchaseId);
-        return res.status(200).json({ success: true });
+      if (!purchase || purchase.status === "completed") {
+        return res.status(200).json({ received: true });
       }
 
-      if (purchase.status === "completed") {
-        console.log("ℹ️ Purchase already completed");
-        return res.status(200).json({ success: true });
-      }
-
-      const user = await User.findById(purchase.userId);
-      const course = await Course.findById(purchase.courseId);
+      const user = await User.findById(userId);
+      const course = await Course.findById(courseId);
 
       if (!user || !course) {
-        console.warn("⚠️ User or Course not found for purchase:", purchaseId);
-        return res.status(200).json({ success: true });
+        console.warn("⚠ User or Course not found");
+        return res.status(200).json({ received: true });
       }
 
-      // ✅ Enroll user safely (no duplicates)
-      if (!user.enrolledCourses.includes(course._id.toString())) {
-        user.enrolledCourses.push(course._id);
+      // ✅ Enroll user
+      if (!user.enrolledCourses.includes(courseId)) {
+        user.enrolledCourses.push(courseId);
         await user.save();
       }
 
-      if (!course.enrolledStudents.includes(user._id.toString())) {
-        course.enrolledStudents.push(user._id);
+      // ✅ Add student to course
+      if (!course.enrolledStudents.includes(userId)) {
+        course.enrolledStudents.push(userId);
         await course.save();
       }
 
+      // ✅ Mark purchase completed
       purchase.status = "completed";
       await purchase.save();
 
-      console.log(`🎉 Enrollment successful: ${user.name} → ${course.courseTitle}`);
+      console.log(
+        `🎉 Enrollment success: ${user.email} → ${course.courseTitle}`
+      );
+
+      // 🔍 VERY IMPORTANT DEBUG LOG
+      console.log("📨 PURCHASE EMAIL WILL BE SENT TO:", user.email);
+
+      // 📧 SEND CONFIRMATION EMAIL
+      await sendEmail({
+        to: user.email,
+        subject: "🎉 Course Purchase Successful | Edemy",
+        html: purchaseSuccessTemplate({
+          name: user.name,
+          courseTitle: course.courseTitle,
+          amount: session.amount_total / 100,
+        }),
+      });
+
+      console.log(`📧 Purchase email SENT SUCCESSFULLY`);
     } catch (error) {
-      console.error("❌ Error processing Stripe webhook:", error);
+      console.error("❌ Stripe Webhook Processing Error:", error);
     }
   }
 
-  res.status(200).json({ received: true });
+  return res.status(200).json({ received: true });
 };
