@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./banner.png" alt="Edemy LMS Banner" width="100%">
+  <img src="https://raw.githubusercontent.com/SahilManav/LMS-FULLSTACK/main/banner.png" alt="Edemy LMS Banner" width="100%">
 </p>
 
 # Edemy - Learning Management System (LMS)
