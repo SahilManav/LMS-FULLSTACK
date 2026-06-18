@@ -1,5 +1,8 @@
-# Edemy - Learning Management System (LMS)
+<p align="center">
+  <img src="./banner.png" alt="Edemy LMS Banner" width="100%">
+</p>
 
+# Edemy - Learning Management System (LMS)
 A full-stack Learning Management System built using the MERN stack, Clerk Authentication, Stripe Payments, Cloudinary, and MongoDB.
 
 ## Features
