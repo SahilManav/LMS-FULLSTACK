@@ -40,8 +40,11 @@ await connectCloudinary();
 ====================================================== */
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: [
+      "http://localhost:5173",
+      "https://lms-fullstack-eight.vercel.app",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
   })
 );
